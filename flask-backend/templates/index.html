@@ -18,7 +18,7 @@
       
                 <div class="mt-4 grid grid-cols-1 gap-y-6 sm:grid-cols-2 sm:gap-x-4">
                   <div>
-                    <label for="first-name" class="block text-sm/6 font-medium text-gray-700">First name</label>
+                    <label for="first-name" required class="block text-sm/6 font-medium text-gray-700">First name</label>
                     <div class="mt-2">
                       <input type="text" id="first-name" name="first-name" autocomplete="given-name" class="block w-full rounded-md bg-white px-3 py-2 text-base text-gray-900 outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6">
                     </div>
@@ -154,11 +154,74 @@
                 <div class="border-t border-gray-200 px-4 py-6 sm:px-6">
                   <button type="submit" class="w-full rounded-md border border-transparent bg-indigo-600 px-4 py-3 text-base font-medium text-white shadow-xs hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-50 focus:outline-hidden">Confirm order</button>
                 </div>
+                <div class="border-t border-gray-200 px-4 py-6 sm:px-6">
+                    <button id="generate-random-data" class="w-full rounded-md border px-4 py-3 text-base text-red-900 shadow-xs border-red-900 cursor-pointer">
+                        Generate Random Data
+                    </button>
+                    <p id="success-message" style="display: none; color: green; margin-top: 10px;"></p>
+
+                </div>
               </div>
             </div>
           </form>
-        </div>
+
       </div>
-      
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    const generateButton = document.getElementById("generate-random-data");
+                    const messageContainer = document.getElementById("success-message");
+                
+                    generateButton.addEventListener("click", function(event) {
+                        event.preventDefault();
+                        generateAndPostRandomData();
+                    });
+                
+                    function generateAndPostRandomData() {
+                        const firstNames = ["Alice", "Bob", "Charlie", "David", "Eve", "Frank", "Grace", "Hank", "Ivy", "Jack"];
+                        const descriptions = ["Basic Tee", "Casual Hoodie", "Leather Jacket", "Sports Shoes", "Denim Jeans", 
+                                              "Classic Watch", "Backpack", "Sunglasses", "Smartphone", "Wireless Headphones"];
+                        
+                        const randomCount = Math.floor(Math.random() * 100) + 1;
+                        let successfulPosts = 0; 
+                
+                        for (let i = 0; i < randomCount; i++) {
+                            const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+                            const description = descriptions[Math.floor(Math.random() * descriptions.length)];
+                            const quantity = Math.floor(Math.random() * 10) + 1; 
+                            const price = (Math.random() * (100 - 10) + 10).toFixed(2);
+                
+                            const formData = new URLSearchParams();
+                            formData.append("first-name", firstName);
+                            formData.append("description", description);
+                            formData.append("quantity", quantity);
+                            formData.append("price", price);
+                
+                            fetch("/api/items", {
+                                method: "POST",
+                                body: formData
+                            })
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error("Server returned an error");
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                console.log("Success:", data);
+                                successfulPosts++;
+                
+                                messageContainer.textContent = `✅ ${successfulPosts}/${randomCount} random items successfully posted!`;
+                                messageContainer.style.display = "block";
+                            })
+                            .catch(error => {
+                                console.error("Error:", error);
+                                messageContainer.textContent = "❌ Error posting data.";
+                                messageContainer.style.display = "block";
+                            });
+                        }
+                    }
+                });
+                </script>
+
 </body>
 </html>
