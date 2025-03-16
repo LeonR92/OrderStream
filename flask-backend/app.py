@@ -29,11 +29,16 @@ KAFKA_BOOTSTRAP_SERVERS = os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'kafka1:2909
 KAFKA_TOPIC = os.environ.get('KAFKA_TOPIC', 'item-events')
 
 # Initialize Kafka producer
-producer = KafkaProducer(
-    bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS.split(','),
-    value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-    key_serializer=lambda v: str(v).encode('utf-8')
-)
+try:
+    producer = KafkaProducer(
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS.split(','),
+        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+        key_serializer=lambda v: str(v).encode('utf-8')
+    )
+    logger.info("Kafka producer initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize Kafka producer: {e}")
+    producer = None
 
 # Define item model
 class Item(db.Model):
@@ -54,12 +59,16 @@ class Item(db.Model):
             'description': self.description,
             'price': float(self.price),
             'quantity': self.quantity,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat()
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 # Publish event to Kafka
 def publish_event(event_type, item_id, data):
+    if not producer:
+        logger.warning("Kafka producer not available, skipping event publishing")
+        return False
+        
     try:
         event = {
             'event_type': event_type,

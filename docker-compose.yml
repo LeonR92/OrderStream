@@ -118,7 +118,7 @@ services:
     platform: linux/arm64
     container_name: flask-backend
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       DATABASE_URI: postgresql://postgres:postgres@postgres:5432/itemsdb
       KAFKA_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29093,kafka3:29094
