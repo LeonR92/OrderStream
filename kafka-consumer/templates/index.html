@@ -3,56 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <title>Live Kafka Events</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            line-height: 1.6;
-        }
-        h1 { color: #333; }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin: 20px 0; 
-        }
-        th, td { 
-            border: 1px solid #ddd; 
-            padding: 8px; 
-            text-align: left; 
-        }
-        th { 
-            background-color: #f2f2f2; 
-            font-weight: bold;
-        }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .status-bar {
-            padding: 10px;
-            margin-bottom: 15px;
-            background-color: #f8f8f8;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-        .connected {
-            color: green;
-            font-weight: bold;
-        }
-        .disconnected {
-            color: red;
-            font-weight: bold;
-        }
-        button {
-            padding: 8px 16px;
-            margin-right: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
         .event-row {
             animation: fadeIn 0.5s;
         }
@@ -62,34 +15,64 @@
         }
     </style>
 </head>
-<body>
-    <h1>Live Kafka Events</h1>
-    
-    <div class="status-bar">
-        Status: <span id="connection-status" class="disconnected">Disconnected</span>
-        | Last event: <span id="last-event">Never</span>
-        | Events: <span id="count">0</span>
-        | <button id="test-btn">Send Test Event</button>
-        | <button id="clear-btn">Clear Table</button>
-        | <button id="load-btn">Load History</button>
+<body class="bg-white">
+    <div class="px-4 sm:px-6 lg:px-8 py-8">
+        <div class="sm:flex sm:items-center">
+            <div class="sm:flex-auto">
+                <h1 class="text-base font-semibold text-gray-900">Live Kafka Events</h1>
+                <p class="mt-2 text-sm text-gray-700">Real-time stream of events from Kafka topics.</p>
+            </div>
+            <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+                <button id="test-btn" type="button" class="block rounded-md bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Send Test Event</button>
+            </div>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <div class="flex items-center gap-x-2">
+                <span class="text-gray-500">Status:</span>
+                <span id="connection-status" class="font-medium text-red-600">Disconnected</span>
+            </div>
+            <div class="flex items-center gap-x-2">
+                <span class="text-gray-500">Last event:</span>
+                <span id="last-event" class="font-medium text-gray-900">Never</span>
+            </div>
+            <div class="flex items-center gap-x-2">
+                <span class="text-gray-500">Events:</span>
+                <span id="count" class="font-medium text-gray-900">0</span>
+            </div>
+            <div class="flex gap-x-2">
+                <button id="clear-btn" type="button" class="rounded-sm bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Clear Table</button>
+                <button id="load-btn" type="button" class="rounded-sm bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Load History</button>
+            </div>
+        </div>
+        
+        <!-- Table -->
+        <div class="mt-8 flow-root">
+            <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-300">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Event Type</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Item ID</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Description</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Price</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Quantity</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-table" class="divide-y divide-gray-200 bg-white">
+                                <!-- Events will be displayed here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Event Type</th>
-                <th>Item ID</th>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Price</th>
-                <th>Quantity</th>
-                <th>Timestamp</th>
-            </tr>
-        </thead>
-        <tbody id="events-table">
-            <!-- Events will be displayed here -->
-        </tbody>
-    </table>
 
     <script>
         // DOM elements
@@ -139,12 +122,21 @@
             ];
             
             // Create cells
-            cells.forEach(cell => {
+            cells.forEach((cell, index) => {
                 const td = document.createElement('td');
                 const value = cell.fallback ?
                     getValue(event, cell.path, getValue(event, cell.fallback)) :
                     getValue(event, cell.path);
+                
                 td.textContent = value;
+                
+                // Apply Tailwind classes
+                if (index === 0) {
+                    td.className = 'whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6';
+                } else {
+                    td.className = 'whitespace-nowrap px-3 py-4 text-sm text-gray-500';
+                }
+                
                 row.appendChild(td);
             });
             
@@ -181,14 +173,14 @@
             // Connection opened
             eventSource.onopen = function() {
                 connectionStatusEl.textContent = 'Connected';
-                connectionStatusEl.className = 'connected';
+                connectionStatusEl.className = 'font-medium text-green-600';
                 console.log('SSE connection established');
             };
             
             // Connection error
             eventSource.onerror = function(error) {
                 connectionStatusEl.textContent = 'Error - Reconnecting...';
-                connectionStatusEl.className = 'disconnected';
+                connectionStatusEl.className = 'font-medium text-red-600';
                 console.error('SSE connection error:', error);
                 
                 // Auto-reconnect after a delay

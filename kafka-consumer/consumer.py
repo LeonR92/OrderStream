@@ -21,11 +21,10 @@ KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'item-consumer-group')
 # Flask app
 app = Flask(__name__, template_folder="templates")
 
-# In-memory storage for events (limit to last 100)
 events = []
 events_lock = threading.Lock()
 
-# Queue for new events (used for SSE)
+# Queue for new  (used for SSE)
 event_queue = queue.Queue()
 
 def kafka_consumer():
