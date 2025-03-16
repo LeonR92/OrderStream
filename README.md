@@ -8,7 +8,7 @@ The system efficiently handles real-time order processing, allowing users to cre
 
 ## Architecture
 
-![System Architecture](./architecture.jepg)
+![System Architecture](./architecture.jpeg)
 
 
 ### Key Components
