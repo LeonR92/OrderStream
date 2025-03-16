@@ -20,7 +20,7 @@
         <div class="sm:flex sm:items-center">
             <div class="sm:flex-auto">
                 <h1 class="text-base font-semibold text-gray-900">Live Kafka Events</h1>
-                <p class="mt-2 text-sm text-gray-700">Real-time stream of events from Kafka topics.</p>
+                <p class="mt-2 text-sm text-gray-700">Real-time stream of top 99 events from Kafka topics.</p>
             </div>
             <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
                 <button id="test-btn" type="button" class="block rounded-md bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Send Test Event</button>
@@ -75,7 +75,6 @@
     </div>
 
     <script>
-        // DOM elements
         const connectionStatusEl = document.getElementById('connection-status');
         const lastEventEl = document.getElementById('last-event');
         const countEl = document.getElementById('count');
@@ -84,11 +83,9 @@
         const clearBtn = document.getElementById('clear-btn');
         const loadBtn = document.getElementById('load-btn');
         
-        // State
         let eventCount = 0;
         let eventSource = null;
         
-        // Helper function to safely access nested properties
         function getValue(obj, path, defaultVal = 'N/A') {
             if (!obj) return defaultVal;
             const parts = path.split('.');
@@ -104,7 +101,6 @@
             return (result === undefined || result === null) ? defaultVal : result;
         }
         
-        // Add event to table
         function addEventToTable(event) {
             const row = document.createElement('tr');
             row.className = 'event-row';
@@ -136,10 +132,8 @@
                 row.appendChild(td);
             });
         
-            // Parse timestamp
             const eventTimestamp = new Date(getValue(event, 'timestamp')).getTime();
         
-            // Insert in correct order (descending by timestamp)
             let inserted = false;
             for (const child of tableEl.children) {
                 const childTimestamp = new Date(child.lastElementChild.textContent).getTime();
@@ -154,48 +148,38 @@
                 tableEl.appendChild(row);
             }
         
-            // Limit table size
-            if (tableEl.children.length > 100) {
+            if (tableEl.children.length > 300) {
                 tableEl.removeChild(tableEl.lastChild);
             }
         
-            // Update count
             eventCount++;
             countEl.textContent = eventCount;
         
-            // Update last event time
             lastEventEl.textContent = new Date().toLocaleTimeString();
         }
         
         
-        // Initialize Server-Sent Events connection
         function initSSE() {
-            // Close existing connection if any
             if (eventSource) {
                 eventSource.close();
             }
             
-            // Create new SSE connection
             eventSource = new EventSource('/stream');
             
-            // Connection opened
             eventSource.onopen = function() {
                 connectionStatusEl.textContent = 'Connected';
                 connectionStatusEl.className = 'font-medium text-green-600';
                 console.log('SSE connection established');
             };
             
-            // Connection error
             eventSource.onerror = function(error) {
                 connectionStatusEl.textContent = 'Error - Reconnecting...';
                 connectionStatusEl.className = 'font-medium text-red-600';
                 console.error('SSE connection error:', error);
                 
-                // Auto-reconnect after a delay
                 setTimeout(initSSE, 5000);
             };
             
-            // Event received
             eventSource.onmessage = function(e) {
                 try {
                     const event = JSON.parse(e.data);
@@ -207,7 +191,6 @@
             };
         }
         
-        // Load history from /events endpoint
         function loadHistory() {
             fetch('/events')
                 .then(response => {
@@ -217,11 +200,9 @@
                     return response.json();
                 })
                 .then(events => {
-                    // Clear existing events
                     tableEl.innerHTML = '';
                     eventCount = 0;
                     
-                    // Add events in reverse order (oldest first)
                     const reversedEvents = [...events].reverse();
                     reversedEvents.forEach(event => {
                         addEventToTable(event, false);
@@ -235,7 +216,6 @@
                 });
         }
         
-        // Button handlers
         testBtn.addEventListener('click', function() {
             fetch('/test-event')
                 .then(response => {
@@ -262,10 +242,8 @@
         
         loadBtn.addEventListener('click', loadHistory);
         
-        // Initialize SSE on page load
         initSSE();
         
-        // Initial load of history
         loadHistory();
     </script>
 </body>

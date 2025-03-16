@@ -38,7 +38,7 @@ class KafkaEventConsumer:
         """Store event in memory and maintain only the latest 100 events."""
         with self.event_lock:
             self.event_store.insert(0, event_data)
-            if len(self.event_store) > 50: # Cap at 50 events in memory
+            if len(self.event_store) > 99: # Cap at 99 events in memory
                 self.event_store.pop()
 
     def _consume_messages(self):
