@@ -15,7 +15,7 @@ KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'item-consumer-group')
 # Flask app
 app = Flask(__name__, template_folder="templates")
 
-# Shared data structures
+# sacing events in mem. In Prod, it will be a db or business logic
 events = []
 events_lock = threading.Lock()
 event_queue = queue.Queue()

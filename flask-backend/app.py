@@ -9,20 +9,14 @@ from event import KafkaEventPublisher
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Initialize Flask app
 app = Flask(__name__)
-
-# Configure database
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# Initialize database with Flask app
 db.init_app(app)
 
 # Kafka Configuration
 KAFKA_BOOTSTRAP_SERVERS = os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'kafka1:29092,kafka2:29093,kafka3:29094').split(',')
 KAFKA_TOPIC = os.environ.get('KAFKA_TOPIC', 'item-events')
-
 event_publisher = KafkaEventPublisher(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS, topic=KAFKA_TOPIC)
 
 @app.route('/health', methods=['GET'])
@@ -38,13 +32,11 @@ def show_order_form():
 def create_item():
     data = request.form
 
-    # Required fields
+    # Guard claude
     required_fields = ['first-name', 'price', 'quantity']
-    
     missing_fields = [field for field in required_fields if not data.get(field)]
     if missing_fields:
         return jsonify({'error': f"Missing required fields: {', '.join(missing_fields)}"}), 400
-
     try:
         item_data = {
             'name': data.get('first-name'),
@@ -55,6 +47,7 @@ def create_item():
     except ValueError:
         return jsonify({'error': 'Invalid data type for price or quantity'}), 400
 
+    # Add item with Active record
     item = Item.create(item_data)
     if not item:
         return jsonify({'error': 'Error creating item'}), 500

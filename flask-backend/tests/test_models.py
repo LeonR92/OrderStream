@@ -13,7 +13,7 @@ def test_app():
 
     with app.app_context():
         db.create_all()
-        yield app  # Provide app context for the test
+        yield app  
         db.session.remove()
         db.drop_all()
 
@@ -27,8 +27,8 @@ def sample_item(test_app):
             "price": 19.99,
             "quantity": 5
         })
-        db.session.refresh(item)  # Ensures it's fresh in the session
-        return item.id  # Return ID to retrieve fresh object in tests
+        db.session.refresh(item)  
+        return item.id  
 
 def test_create_item(test_app):
     """Test creating an item."""
@@ -43,7 +43,7 @@ def test_create_item(test_app):
         assert item is not None
         assert item.name == "New Item"
         assert item.description == "This is a new item"
-        assert float(item.price) == 9.99  # Convert Decimal to float
+        assert float(item.price) == 9.99  
         assert item.quantity == 3
 
 def test_get_all_items(test_app, sample_item):
@@ -56,7 +56,7 @@ def test_get_all_items(test_app, sample_item):
 def test_get_by_id(test_app, sample_item):
     """Test fetching an item by ID (avoiding detached instance)."""
     with test_app.app_context():
-        item = Item.get_by_id(sample_item)  # Fetch fresh instance
+        item = Item.get_by_id(sample_item)  
         assert item is not None
         assert item.name == "Test Item"
 
@@ -68,7 +68,7 @@ def test_update_item(test_app, sample_item):
 
         assert updated_item is not None
         assert updated_item.name == "Updated Item"
-        assert float(updated_item.price) == 25.99  # Convert Decimal to float
+        assert float(updated_item.price) == 25.99  
 
 def test_delete_item(test_app, sample_item):
     """Test deleting an item."""
@@ -77,4 +77,4 @@ def test_delete_item(test_app, sample_item):
         assert success is True
 
         item = Item.get_by_id(sample_item)
-        assert item is None  # Item should be deleted
+        assert item is None  

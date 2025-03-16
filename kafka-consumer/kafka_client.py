@@ -38,7 +38,7 @@ class KafkaEventConsumer:
         """Store event in memory and maintain only the latest 100 events."""
         with self.event_lock:
             self.event_store.insert(0, event_data)
-            if len(self.event_store) > 50:
+            if len(self.event_store) > 100: # Cap at 100 events in memory
                 self.event_store.pop()
 
     def _consume_messages(self):
@@ -65,7 +65,7 @@ class KafkaEventConsumer:
 
             except Exception as e:
                 logger.error(f"Kafka consumer error: {e}")
-                time.sleep(5)  # Retry on failure
+                time.sleep(5)  # Retry on failure. Should be replace by circuit breaker
 
     def start(self):
         """Start the Kafka consumer thread."""

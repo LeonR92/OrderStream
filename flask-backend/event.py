@@ -21,6 +21,7 @@ class KafkaEventPublisher:
         self.bootstrap_servers = bootstrap_servers
         self.topic = topic
 
+        # Kafka init
         try:
             self.producer = KafkaProducer(
                 bootstrap_servers=self.bootstrap_servers,
@@ -38,6 +39,7 @@ class KafkaEventPublisher:
             logger.warning("Kafka producer not available, skipping event publishing")
             return False
 
+        # Try sending and getting future confirmtion
         try:
             event = {
                 'event_type': event_type,
