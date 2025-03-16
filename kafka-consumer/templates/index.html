@@ -3,340 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kafka Live Stream</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <title>Live Kafka Events</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            line-height: 1.6;
+        .event-row {
+            animation: fadeIn 0.5s;
         }
-        h1, h2 { 
-            color: #333;
-        }
-        table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            margin: 20px 0; 
-        }
-        th, td { 
-            border: 1px solid #ddd; 
-            padding: 8px; 
-            text-align: left; 
-        }
-        th { 
-            background-color: #f2f2f2; 
-            font-weight: bold;
-        }
-        tr:nth-child(even) { 
-            background-color: #f9f9f9; 
-        }
-        .status-bar {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-            padding: 10px;
-            background-color: #f8f8f8;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-        }
-        .status-item {
-            margin-right: 20px;
-        }
-        .status-indicator {
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-        .connected { 
-            background-color: #dff0d8; 
-            color: #3c763d; 
-        }
-        .disconnected { 
-            background-color: #f2dede; 
-            color: #a94442; 
-        }
-        .button-group {
-            margin: 15px 0;
-        }
-        button {
-            padding: 8px 16px;
-            margin-right: 10px;
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        #log-container {
-            margin-top: 20px;
-            border: 1px solid #ddd;
-            padding: 10px;
-            max-height: 200px;
-            overflow-y: auto;
-            background-color: #f9f9f9;
-            font-family: monospace;
-            font-size: 12px;
-            display: none;
+        @keyframes fadeIn {
+            from { background-color: #ffffcc; }
+            to { background-color: transparent; }
         }
     </style>
 </head>
-<body>
-    <h1>Kafka Live Stream</h1>
-    
-    <div class="status-bar">
-        <div class="status-item">
-            Status: <span id="status" class="status-indicator disconnected">Disconnected</span>
+<body class="bg-white">
+    <div class="px-4 sm:px-6 lg:px-8 py-8">
+        <div class="sm:flex sm:items-center">
+            <div class="sm:flex-auto">
+                <h1 class="text-base font-semibold text-gray-900">Live Kafka Events</h1>
+                <p class="mt-2 text-sm text-gray-700">Real-time stream of events from Kafka topics.</p>
+            </div>
+            <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+                <button id="test-btn" type="button" class="block rounded-md bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-xs hover:bg-indigo-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Send Test Event</button>
+            </div>
         </div>
-        <div class="status-item">
-            Events: <span id="count">0</span>
+        
+        <!-- Status Bar -->
+        <div class="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <div class="flex items-center gap-x-2">
+                <span class="text-gray-500">Status:</span>
+                <span id="connection-status" class="font-medium text-red-600">Disconnected</span>
+            </div>
+            <div class="flex items-center gap-x-2">
+                <span class="text-gray-500">Last event:</span>
+                <span id="last-event" class="font-medium text-gray-900">Never</span>
+            </div>
+            <div class="flex items-center gap-x-2">
+                <span class="text-gray-500">Events:</span>
+                <span id="count" class="font-medium text-gray-900">0</span>
+            </div>
+            <div class="flex gap-x-2">
+                <button id="clear-btn" type="button" class="rounded-sm bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Clear Table</button>
+                <button id="load-btn" type="button" class="rounded-sm bg-white px-2 py-1 text-sm font-semibold text-gray-900 shadow-xs ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Load History</button>
+            </div>
         </div>
-        <div class="status-item">
-            Namespace: <span id="namespace-display">/events</span>
-        </div>
-        <div class="status-item">
-            Client ID: <span id="client-id">-</span>
+        
+        <!-- Table -->
+        <div class="mt-8 flow-root">
+            <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+                <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-300">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Event Type</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Item ID</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Name</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Description</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Price</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Quantity</th>
+                                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="events-table" class="divide-y divide-gray-200 bg-white">
+                                <!-- Events will be displayed here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    
-    <div class="button-group">
-        <button id="test-btn">Send Test Event</button>
-        <button id="clear-btn">Clear Table</button>
-        <button id="reconnect-btn">Reconnect</button>
-        <button id="toggle-namespace-btn">Toggle Namespace</button>
-        <button id="toggle-log-btn">Show/Hide Log</button>
-    </div>
-    
-    <div id="log-container">
-        <h3>Connection Log</h3>
-        <div id="log"></div>
-    </div>
-    
-    <table>
-        <thead>
-            <tr>
-                <th>Event Type</th>
-                <th>Item ID</th>
-                <th>Name</th>
-                <th>Description</th>
-                <th>Price</th>
-                <th>Quantity</th>
-                <th>Timestamp</th>
-            </tr>
-        </thead>
-        <tbody id="events-table">
-            <!-- Events will be displayed here -->
-        </tbody>
-    </table>
 
     <script>
         // DOM elements
-        const statusEl = document.getElementById('status');
+        const connectionStatusEl = document.getElementById('connection-status');
+        const lastEventEl = document.getElementById('last-event');
         const countEl = document.getElementById('count');
         const tableEl = document.getElementById('events-table');
         const testBtn = document.getElementById('test-btn');
         const clearBtn = document.getElementById('clear-btn');
-        const reconnectBtn = document.getElementById('reconnect-btn');
-        const toggleNamespaceBtn = document.getElementById('toggle-namespace-btn');
-        const toggleLogBtn = document.getElementById('toggle-log-btn');
-        const namespaceDisplayEl = document.getElementById('namespace-display');
-        const clientIdEl = document.getElementById('client-id');
-        const logContainerEl = document.getElementById('log-container');
-        const logEl = document.getElementById('log');
+        const loadBtn = document.getElementById('load-btn');
         
         // State
         let eventCount = 0;
-        let socket = null;
-        let useNamespace = true; // Start with namespace
-        let pingInterval = null;
-        let clientId = null;
+        let eventSource = null;
         
-        // Logging function
-        function log(message) {
-            const time = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.innerHTML = `<strong>[${time}]</strong> ${message}`;
-            logEl.insertBefore(entry, logEl.firstChild);
-            console.log(`[${time}] ${message}`);
+        // Helper function to safely access nested properties
+        function getValue(obj, path, defaultVal = 'N/A') {
+            if (!obj) return defaultVal;
+            const parts = path.split('.');
+            let result = obj;
             
-            // Keep log size reasonable
-            if (logEl.children.length > 100) {
-                logEl.removeChild(logEl.lastChild);
-            }
-        }
-        
-        // Initialize socket connection
-        function initializeSocket() {
-            // Clean up existing connection and intervals
-            if (socket) {
-                log('Disconnecting existing socket');
-                socket.disconnect();
-                
-                if (pingInterval) {
-                    clearInterval(pingInterval);
-                    pingInterval = null;
+            for (const part of parts) {
+                if (result === undefined || result === null) {
+                    return defaultVal;
                 }
+                result = result[part];
             }
             
-            const namespace = useNamespace ? '/events' : '/';
-            log(`Initializing socket with ${namespace} namespace`);
-            namespaceDisplayEl.textContent = namespace;
-            
-            // Update status
-            statusEl.textContent = 'Connecting...';
-            statusEl.className = 'status-indicator disconnected';
-            clientIdEl.textContent = '-';
-            
-            // Create socket connection
-            socket = io(namespace, {
-                transports: ['websocket'],
-                reconnection: true,
-                reconnectionAttempts: Infinity,
-                reconnectionDelay: 1000,
-                timeout: 10000
-            });
-            
-            // Connection events
-            socket.on('connect', function() {
-                log('Connected to server');
-                statusEl.textContent = 'Connected';
-                statusEl.className = 'status-indicator connected';
-                
-                // Start sending pings to keep connection alive
-                if (pingInterval) {
-                    clearInterval(pingInterval);
-                }
-                
-                pingInterval = setInterval(function() {
-                    socket.emit('ping_server');
-                    log('Ping sent to server');
-                }, 15000); // Every 15 seconds
-            });
-            
-            socket.on('disconnect', function(reason) {
-                log(`Disconnected: ${reason}`);
-                statusEl.textContent = `Disconnected: ${reason}`;
-                statusEl.className = 'status-indicator disconnected';
-                
-                if (pingInterval) {
-                    clearInterval(pingInterval);
-                    pingInterval = null;
-                }
-            });
-            
-            socket.on('connect_error', function(error) {
-                log(`Connection error: ${error.message}`);
-                statusEl.textContent = 'Connection Error';
-                statusEl.className = 'status-indicator disconnected';
-            });
-            
-            socket.on('error', function(error) {
-                log(`Socket error: ${error}`);
-            });
-            
-            // Listen for connection response
-            socket.on('connection_response', function(data) {
-                log(`Server confirmed connection: ${JSON.stringify(data)}`);
-                if (data.client_id) {
-                    clientId = data.client_id;
-                    clientIdEl.textContent = clientId;
-                }
-            });
-            
-            // Listen for pong response
-            socket.on('pong', function(data) {
-                log(`Pong received: ${JSON.stringify(data)}`);
-            });
-            
-            // Listen for new events
-            socket.on('new_event', function(data) {
-                log(`Received event: ${data.event_type} - ID: ${data.item_id || (data.data && data.data.id) || 'unknown'}`);
-                processEvent(data);
-            });
+            return (result === undefined || result === null) ? defaultVal : result;
         }
         
-        // Process incoming event
-        function processEvent(data) {
-            try {
-                // Update counter
-                eventCount++;
-                countEl.textContent = eventCount;
+        // Add event to table
+        function addEventToTable(event, prepend = true) {
+            // Create row
+            const row = document.createElement('tr');
+            row.className = 'event-row';
+            
+            // Define columns
+            const cells = [
+                { path: 'event_type' },
+                { path: 'data.id', fallback: 'item_id' },
+                { path: 'data.name' },
+                { path: 'data.description' },
+                { path: 'data.price' },
+                { path: 'data.quantity' },
+                { path: 'timestamp' }
+            ];
+            
+            // Create cells
+            cells.forEach((cell, index) => {
+                const td = document.createElement('td');
+                const value = cell.fallback ?
+                    getValue(event, cell.path, getValue(event, cell.fallback)) :
+                    getValue(event, cell.path);
                 
-                // Helper function to safely access nested properties
-                function getValue(obj, path, defaultVal = 'N/A') {
-                    try {
-                        if (!obj) return defaultVal;
-                        
-                        const parts = path.split('.');
-                        let result = obj;
-                        
-                        for (const part of parts) {
-                            if (result === undefined || result === null) {
-                                return defaultVal;
-                            }
-                            result = result[part];
-                        }
-                        
-                        return (result === undefined || result === null) ? defaultVal : result;
-                    } catch (e) {
-                        console.error('Error getting value:', e);
-                        return defaultVal;
-                    }
-                }
+                td.textContent = value;
                 
-                // Create new row
-                const row = document.createElement('tr');
-                
-                // Add cells for each column
-                const cells = [
-                    { path: 'event_type' },
-                    { path: 'data.id', fallback: 'item_id' },
-                    { path: 'data.name' },
-                    { path: 'data.description' },
-                    { path: 'data.price' },
-                    { path: 'data.quantity' },
-                    { path: 'timestamp' }
-                ];
-                
-                cells.forEach(cell => {
-                    const td = document.createElement('td');
-                    const value = cell.fallback ?
-                        getValue(data, cell.path, getValue(data, cell.fallback)) :
-                        getValue(data, cell.path);
-                    td.textContent = value;
-                    row.appendChild(td);
-                });
-                
-                // Add to table at the top
-                if (tableEl.firstChild) {
-                    tableEl.insertBefore(row, tableEl.firstChild);
+                // Apply Tailwind classes
+                if (index === 0) {
+                    td.className = 'whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6';
                 } else {
-                    tableEl.appendChild(row);
+                    td.className = 'whitespace-nowrap px-3 py-4 text-sm text-gray-500';
                 }
                 
-                // Limit table size
-                if (tableEl.children.length > 50) {
-                    tableEl.removeChild(tableEl.lastChild);
-                }
-                
-            } catch (error) {
-                log(`Error processing event: ${error.message}`);
-                console.error('Event data:', data);
-                console.error('Error:', error);
+                row.appendChild(td);
+            });
+            
+            // Add to table
+            if (prepend && tableEl.firstChild) {
+                tableEl.insertBefore(row, tableEl.firstChild);
+            } else {
+                tableEl.appendChild(row);
             }
+            
+            // Limit table size
+            if (tableEl.children.length > 100) {
+                tableEl.removeChild(tableEl.lastChild);
+            }
+            
+            // Update count
+            eventCount++;
+            countEl.textContent = eventCount;
+            
+            // Update last event time
+            lastEventEl.textContent = new Date().toLocaleTimeString();
         }
         
-        // Button event handlers
+        // Initialize Server-Sent Events connection
+        function initSSE() {
+            // Close existing connection if any
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            // Create new SSE connection
+            eventSource = new EventSource('/stream');
+            
+            // Connection opened
+            eventSource.onopen = function() {
+                connectionStatusEl.textContent = 'Connected';
+                connectionStatusEl.className = 'font-medium text-green-600';
+                console.log('SSE connection established');
+            };
+            
+            // Connection error
+            eventSource.onerror = function(error) {
+                connectionStatusEl.textContent = 'Error - Reconnecting...';
+                connectionStatusEl.className = 'font-medium text-red-600';
+                console.error('SSE connection error:', error);
+                
+                // Auto-reconnect after a delay
+                setTimeout(initSSE, 5000);
+            };
+            
+            // Event received
+            eventSource.onmessage = function(e) {
+                try {
+                    const event = JSON.parse(e.data);
+                    console.log('New event received:', event);
+                    addEventToTable(event);
+                } catch (error) {
+                    console.error('Error processing event:', error);
+                }
+            };
+        }
+        
+        // Load history from /events endpoint
+        function loadHistory() {
+            fetch('/events')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(events => {
+                    // Clear existing events
+                    tableEl.innerHTML = '';
+                    eventCount = 0;
+                    
+                    // Add events in reverse order (oldest first)
+                    const reversedEvents = [...events].reverse();
+                    reversedEvents.forEach(event => {
+                        addEventToTable(event, false);
+                    });
+                    
+                    console.log(`Loaded ${events.length} historical events`);
+                })
+                .catch(error => {
+                    console.error('Error loading history:', error);
+                    alert('Error loading history: ' + error.message);
+                });
+        }
+        
+        // Button handlers
         testBtn.addEventListener('click', function() {
             fetch('/test-event')
                 .then(response => {
-                    log('Test event requested');
+                    if (!response.ok) {
+                        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Test event sent:', data);
                 })
                 .catch(error => {
-                    log(`Error requesting test event: ${error.message}`);
+                    console.error('Error sending test event:', error);
+                    alert('Error sending test event: ' + error.message);
                 });
         });
         
@@ -344,62 +249,16 @@
             tableEl.innerHTML = '';
             eventCount = 0;
             countEl.textContent = '0';
-            log('Table cleared');
+            console.log('Table cleared');
         });
         
-        reconnectBtn.addEventListener('click', function() {
-            log('Manual reconnection requested');
-            initializeSocket();
-        });
+        loadBtn.addEventListener('click', loadHistory);
         
-        toggleNamespaceBtn.addEventListener('click', function() {
-            useNamespace = !useNamespace;
-            log(`Switching to ${useNamespace ? '/events namespace' : 'root namespace'}`);
-            initializeSocket();
-        });
+        // Initialize SSE on page load
+        initSSE();
         
-        toggleLogBtn.addEventListener('click', function() {
-            if (logContainerEl.style.display === 'none') {
-                logContainerEl.style.display = 'block';
-                toggleLogBtn.textContent = 'Hide Log';
-            } else {
-                logContainerEl.style.display = 'none';
-                toggleLogBtn.textContent = 'Show Log';
-            }
-        });
-        
-        // Handle page visibility changes to reconnect if needed
-        document.addEventListener('visibilitychange', function() {
-            const isVisible = !document.hidden;
-            log(`Page visibility changed: ${isVisible ? 'visible' : 'hidden'}`);
-            
-            if (isVisible && (!socket || !socket.connected)) {
-                log('Page became visible, reconnecting socket');
-                initializeSocket();
-            }
-        });
-        
-        // Initialize on page load
-        window.addEventListener('load', function() {
-            log('Page loaded, initializing socket');
-            initializeSocket();
-        });
-        
-        // Ensure clean disconnection when page unloads
-        window.addEventListener('beforeunload', function() {
-            if (socket) {
-                socket.disconnect();
-            }
-            if (pingInterval) {
-                clearInterval(pingInterval);
-            }
-        });
-        
-        // Start immediately if already loaded
-        if (document.readyState === 'complete') {
-            log('Page already loaded, initializing socket');
-            initializeSocket();
-        }
+        // Initial load of history
+        loadHistory();
     </script>
 </body>
 </html>

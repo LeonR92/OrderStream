@@ -11,6 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Make sure Flask knows it's running in a container
+ENV PYTHONUNBUFFERED=1
+ENV FLASK_ENV=production
+ENV HOST=0.0.0.0
+
 # Expose Flask port
 EXPOSE 5002
 
