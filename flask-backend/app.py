@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, render_template, request, jsonify
 import os
 import logging
 from datetime import datetime
@@ -29,7 +29,11 @@ event_publisher = KafkaEventPublisher(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
-@app.route('/api/items', methods=['GET'])
+@app.route("/order")
+def show_order_form():
+    return render_template("index.html")
+
+@app.route('/api/get_items', methods=['GET'])
 def get_items():
     items = Item.get_all()
     return jsonify([item.to_dict() for item in items])
@@ -43,18 +47,34 @@ def get_item(item_id):
 
 @app.route('/api/items', methods=['POST'])
 def create_item():
-    data = request.get_json()
-    
-    for field in ['name', 'price', 'quantity']:
-        if field not in data:
-            return jsonify({'error': f"Missing required field: {field}"}), 400
+    data = request.form
 
-    item = Item.create(data)
+    # Required fields
+    required_fields = ['first-name', 'price', 'quantity']
+    
+    missing_fields = [field for field in required_fields if not data.get(field)]
+    if missing_fields:
+        return jsonify({'error': f"Missing required fields: {', '.join(missing_fields)}"}), 400
+
+    try:
+        item_data = {
+            'name': data.get('first-name'),
+            'description': data.get('description'),
+            'quantity': int(data.get('quantity', 1)),
+            'price': float(data.get('price', 0.0))
+        }
+    except ValueError:
+        return jsonify({'error': 'Invalid data type for price or quantity'}), 400
+
+    item = Item.create(item_data)
     if not item:
         return jsonify({'error': 'Error creating item'}), 500
 
+    # Publish event
     event_publisher.publish_event('item_created', item.id, item.to_dict())
+
     return jsonify(item.to_dict()), 201
+
 
 @app.route('/api/items/<int:item_id>', methods=['PUT'])
 def update_item(item_id):
