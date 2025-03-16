@@ -3,8 +3,8 @@ import json
 import logging
 import threading
 import time
-from flask import Flask, render_template, request
-from flask_socketio import SocketIO, emit
+from datetime import datetime
+from flask import Flask, render_template, jsonify
 from kafka import KafkaConsumer
 
 # Configure logging
@@ -17,88 +17,15 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka1:29092,kaf
 KAFKA_TOPIC = os.getenv('KAFKA_TOPIC', 'item-events')
 KAFKA_GROUP_ID = os.getenv('KAFKA_GROUP_ID', 'item-consumer-group')
 
-# Flask app with WebSockets
+# Flask app
 app = Flask(__name__, template_folder="templates")
-socketio = SocketIO(app, 
-                    cors_allowed_origins="*", 
-                    json=json,
-                    logger=True, 
-                    engineio_logger=True)
 
-# Track clients by session ID
-connected_clients = set()
-clients_lock = threading.Lock()
-
-# Flag to force events to be sent regardless of connection count
-FORCE_EMIT = True
-
-# Connection handlers for the events namespace
-@socketio.on('connect', namespace='/events')
-def events_connect():
-    client_id = request.sid
-    with clients_lock:
-        connected_clients.add(client_id)
-        client_count = len(connected_clients)
-    
-    logger.info(f"Client connected to /events namespace (ID: {client_id}). Active clients: {client_count}")
-    emit('connection_response', {
-        'status': 'connected', 
-        'namespace': '/events',
-        'client_id': client_id,
-        'active_clients': client_count
-    })
-
-@socketio.on('disconnect', namespace='/events')
-def events_disconnect():
-    client_id = request.sid
-    with clients_lock:
-        if client_id in connected_clients:
-            connected_clients.remove(client_id)
-        client_count = len(connected_clients)
-    
-    logger.info(f"Client disconnected from /events namespace (ID: {client_id}). Active clients: {client_count}")
-
-# Root namespace handlers for compatibility
-@socketio.on('connect')
-def connect():
-    client_id = request.sid
-    with clients_lock:
-        connected_clients.add(client_id)
-        client_count = len(connected_clients)
-    
-    logger.info(f"Client connected to root namespace (ID: {client_id}). Active clients: {client_count}")
-    emit('connection_response', {
-        'status': 'connected', 
-        'namespace': 'root',
-        'client_id': client_id,
-        'active_clients': client_count
-    })
-
-@socketio.on('disconnect')
-def disconnect():
-    client_id = request.sid
-    with clients_lock:
-        if client_id in connected_clients:
-            connected_clients.remove(client_id)
-        client_count = len(connected_clients)
-    
-    logger.info(f"Client disconnected from root namespace (ID: {client_id}). Active clients: {client_count}")
-
-# Ping handler to keep connections alive
-@socketio.on('ping_server', namespace='/events')
-def handle_ping_events():
-    client_id = request.sid
-    logger.info(f"Ping received from client (ID: {client_id}) on /events namespace")
-    emit('pong', {'timestamp': time.time(), 'client_id': client_id})
-
-@socketio.on('ping_server')
-def handle_ping_root():
-    client_id = request.sid
-    logger.info(f"Ping received from client (ID: {client_id}) on root namespace")
-    emit('pong', {'timestamp': time.time(), 'client_id': client_id})
+# In-memory storage for events (limit to last 100)
+events = []
+events_lock = threading.Lock()
 
 def kafka_consumer():
-    """Kafka consumer that emits events to websocket clients."""
+    """Kafka consumer that stores events in memory."""
     logger.info(f"Starting Kafka consumer for topic: {KAFKA_TOPIC}")
     
     # Give the server time to start
@@ -106,7 +33,6 @@ def kafka_consumer():
     
     while True:
         try:
-            logger.info(f"Connecting to Kafka servers at {KAFKA_BOOTSTRAP_SERVERS}")
             consumer = KafkaConsumer(
                 KAFKA_TOPIC,
                 bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS.split(','),
@@ -117,53 +43,43 @@ def kafka_consumer():
                 key_deserializer=lambda x: x.decode('utf-8') if x else None
             )
             
-            logger.info("Kafka consumer connected successfully. Waiting for messages...")
+            logger.info("Kafka consumer connected. Waiting for messages...")
             
             for message in consumer:
                 event_data = message.value
-                logger.info(f"✅ Received from Kafka: {event_data}")
+                logger.info(f"Received from Kafka: {event_data}")
                 
-                with clients_lock:
-                    client_count = len(connected_clients)
+                with events_lock:
+                    # Add to the beginning of the list
+                    events.insert(0, event_data)
+                    # Keep only the last 100 events
+                    if len(events) > 100:
+                        events.pop()
                 
-                if client_count > 0 or FORCE_EMIT:
-                    try:
-                        # Get the item ID in a safe way
-                        item_id = None
-                        if 'item_id' in event_data:
-                            item_id = event_data['item_id']
-                        elif 'data' in event_data and 'id' in event_data['data']:
-                            item_id = event_data['data']['id']
-                            
-                        logger.info(f"Emitting event to {client_count} clients: {event_data.get('event_type')} - ID: {item_id}")
-                        
-                        # Send to both namespaces for maximum compatibility
-                        socketio.emit('new_event', event_data, namespace='/events')
-                        socketio.emit('new_event', event_data)
-                        
-                        logger.info(f"Event successfully emitted")
-                    except Exception as e:
-                        logger.error(f"Error emitting event: {e}")
-                else:
-                    logger.info("No active clients, skipping event emission")
-        
+                logger.info(f"Event stored in memory. Total events: {len(events)}")
+                
         except Exception as e:
             logger.error(f"Kafka consumer error: {e}")
             time.sleep(5)  # Retry after 5 seconds
 
 @app.route('/')
 def index():
-    """Serve the HTML page with WebSocket updates."""
-    logger.info("Serving index page")
+    """Serve the HTML page."""
     return render_template('index.html')
+
+@app.route('/events')
+def get_events():
+    """Return current events as JSON."""
+    with events_lock:
+        return jsonify(events)
 
 @app.route('/test-event')
 def test_event():
-    """Send a test event via WebSocket."""
+    """Add a test event."""
     test_data = {
         "event_type": "test_event",
         "item_id": 999,
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "timestamp": datetime.now().isoformat(),
         "data": {
             "id": 999,
             "name": "Test Item",
@@ -173,33 +89,21 @@ def test_event():
         }
     }
     
-    # Send to both namespaces
-    socketio.emit('new_event', test_data, namespace='/events')
-    socketio.emit('new_event', test_data)
+    with events_lock:
+        # Add to the beginning of the list
+        events.insert(0, test_data)
+        # Keep only the last 100 events
+        if len(events) > 100:
+            events.pop()
     
-    logger.info(f"Test event emitted: {test_data}")
-    return "Test event sent. Check your WebSocket client."
-
-@app.route('/status')
-def status():
-    """Return the current connection status."""
-    with clients_lock:
-        client_count = len(connected_clients)
-        clients_list = list(connected_clients)
-    
-    status_data = {
-        "active_clients": client_count,
-        "client_ids": clients_list,
-        "force_emit": FORCE_EMIT
-    }
-    
-    return json.dumps(status_data)
+    logger.info(f"Test event added: {test_data}")
+    return jsonify({"status": "success", "message": "Test event added"})
 
 if __name__ == '__main__':
     # Start Kafka consumer in a separate thread
     consumer_thread = threading.Thread(target=kafka_consumer, daemon=True)
     consumer_thread.start()
     
-    # Run the Flask-SocketIO server
-    logger.info("Starting Flask-SocketIO server")
-    socketio.run(app, host='0.0.0.0', port=5002, debug=True)
+    # Run the Flask server
+    logger.info("Starting Flask server")
+    app.run(host='0.0.0.0', port=5002, debug=True)
