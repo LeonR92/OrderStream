@@ -38,7 +38,7 @@ The system efficiently handles real-time order processing, allowing users to cre
 **Manual Entry**
 ![Manual Entry](./manualentry.jpeg)
 
-**Live results**
+**Live results will be displayed in the first row**
 ![Manual Results](./manualresult.jpeg)
 
 
