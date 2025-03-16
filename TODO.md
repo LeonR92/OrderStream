@@ -1,2 +1,3 @@
-4. README Active record , Socket and Kafka decoupled service
-1. outbox pattern ?!
+1. Add outbox pattern
+2. Prometheus and Grafana
+3. Github actions
