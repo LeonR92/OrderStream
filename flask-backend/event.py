@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime
 from kafka import KafkaProducer
-from typing import List, Optional
+from typing import List
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

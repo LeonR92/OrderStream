@@ -1,33 +1,30 @@
-import pytest
-import json
 from unittest.mock import MagicMock, patch
-from datetime import datetime
-from event import KafkaEventPublisher  # Ensure correct import path
+from event import KafkaEventPublisher  
 
-@pytest.fixture
-def kafka_publisher():
-    """Fixture to initialize KafkaEventPublisher with a mocked producer."""
+def test_kafka_producer_initialization():
+    """Test if Kafka producer initializes correctly."""
     with patch("event.KafkaProducer") as MockKafkaProducer:
         mock_producer = MockKafkaProducer.return_value
-        return KafkaEventPublisher(bootstrap_servers=["localhost:9092"], topic="test-topic")
+        publisher = KafkaEventPublisher(bootstrap_servers=["localhost:9092"], topic="test-topic")
 
-def test_kafka_producer_initialization(kafka_publisher):
-    """Test if Kafka producer initializes correctly."""
-    assert kafka_publisher.producer is not None
+        assert publisher.producer is mock_producer  
 
-def test_publish_event(kafka_publisher):
+def test_publish_event():
     """Test publishing an event."""
-    kafka_publisher.producer.send = MagicMock()
+    with patch("event.KafkaProducer") as MockKafkaProducer:
+        mock_producer = MockKafkaProducer.return_value
+        mock_producer.send = MagicMock()  
 
-    event_data = {"name": "Test Item"}
-    result = kafka_publisher.publish_event("item_created", 1, event_data)
+        publisher = KafkaEventPublisher(bootstrap_servers=["localhost:9092"], topic="test-topic")
 
-    assert result is True
-    kafka_publisher.producer.send.assert_called_once()
+        event_data = {"name": "Test Item"}
+        result = publisher.publish_event("item_created", 1, event_data)
 
-    # Validate sent data
-    _, kwargs = kafka_publisher.producer.send.call_args
-    sent_data = kwargs["value"]
-    assert sent_data["event_type"] == "item_created"
-    assert sent_data["item_id"] == 1
-    assert "timestamp" in sent_data
+        assert result is True
+        mock_producer.send.assert_called_once()
+
+        _, kwargs = mock_producer.send.call_args
+        sent_data = kwargs["value"]
+        assert sent_data["event_type"] == "item_created"
+        assert sent_data["item_id"] == 1
+        assert "timestamp" in sent_data

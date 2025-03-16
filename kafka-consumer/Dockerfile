@@ -20,4 +20,4 @@ ENV HOST=0.0.0.0
 EXPOSE 5002
 
 # Run Flask app with WebSockets
-CMD ["python", "consumer.py"]
+CMD ["python", "app.py"]
