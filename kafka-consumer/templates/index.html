@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kafka Events Viewer</title>
+    <title>Live Kafka Events</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -33,6 +33,14 @@
             border-radius: 4px;
             border: 1px solid #ddd;
         }
+        .connected {
+            color: green;
+            font-weight: bold;
+        }
+        .disconnected {
+            color: red;
+            font-weight: bold;
+        }
         button {
             padding: 8px 16px;
             margin-right: 10px;
@@ -45,22 +53,25 @@
         button:hover {
             background-color: #45a049;
         }
+        .event-row {
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn {
+            from { background-color: #ffffcc; }
+            to { background-color: transparent; }
+        }
     </style>
 </head>
 <body>
-    <h1>Kafka Events Viewer</h1>
+    <h1>Live Kafka Events</h1>
     
     <div class="status-bar">
-        Last updated: <span id="last-update">Never</span>
+        Status: <span id="connection-status" class="disconnected">Disconnected</span>
+        | Last event: <span id="last-event">Never</span>
         | Events: <span id="count">0</span>
-        | <span id="status">Idle</span>
-        | Auto-refresh: <input type="checkbox" id="auto-refresh" checked>
-    </div>
-    
-    <div>
-        <button id="test-btn">Send Test Event</button>
-        <button id="refresh-btn">Refresh Now</button>
-        <button id="clear-btn">Clear Table</button>
+        | <button id="test-btn">Send Test Event</button>
+        | <button id="clear-btn">Clear Table</button>
+        | <button id="load-btn">Load History</button>
     </div>
     
     <table>
@@ -82,17 +93,17 @@
 
     <script>
         // DOM elements
-        const lastUpdateEl = document.getElementById('last-update');
+        const connectionStatusEl = document.getElementById('connection-status');
+        const lastEventEl = document.getElementById('last-event');
         const countEl = document.getElementById('count');
-        const statusEl = document.getElementById('status');
         const tableEl = document.getElementById('events-table');
         const testBtn = document.getElementById('test-btn');
-        const refreshBtn = document.getElementById('refresh-btn');
         const clearBtn = document.getElementById('clear-btn');
-        const autoRefreshEl = document.getElementById('auto-refresh');
+        const loadBtn = document.getElementById('load-btn');
         
         // State
-        let refreshInterval = null;
+        let eventCount = 0;
+        let eventSource = null;
         
         // Helper function to safely access nested properties
         function getValue(obj, path, defaultVal = 'N/A') {
@@ -110,10 +121,94 @@
             return (result === undefined || result === null) ? defaultVal : result;
         }
         
-        // Fetch events from server
-        function fetchEvents() {
-            statusEl.textContent = 'Fetching...';
+        // Add event to table
+        function addEventToTable(event, prepend = true) {
+            // Create row
+            const row = document.createElement('tr');
+            row.className = 'event-row';
             
+            // Define columns
+            const cells = [
+                { path: 'event_type' },
+                { path: 'data.id', fallback: 'item_id' },
+                { path: 'data.name' },
+                { path: 'data.description' },
+                { path: 'data.price' },
+                { path: 'data.quantity' },
+                { path: 'timestamp' }
+            ];
+            
+            // Create cells
+            cells.forEach(cell => {
+                const td = document.createElement('td');
+                const value = cell.fallback ?
+                    getValue(event, cell.path, getValue(event, cell.fallback)) :
+                    getValue(event, cell.path);
+                td.textContent = value;
+                row.appendChild(td);
+            });
+            
+            // Add to table
+            if (prepend && tableEl.firstChild) {
+                tableEl.insertBefore(row, tableEl.firstChild);
+            } else {
+                tableEl.appendChild(row);
+            }
+            
+            // Limit table size
+            if (tableEl.children.length > 100) {
+                tableEl.removeChild(tableEl.lastChild);
+            }
+            
+            // Update count
+            eventCount++;
+            countEl.textContent = eventCount;
+            
+            // Update last event time
+            lastEventEl.textContent = new Date().toLocaleTimeString();
+        }
+        
+        // Initialize Server-Sent Events connection
+        function initSSE() {
+            // Close existing connection if any
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            // Create new SSE connection
+            eventSource = new EventSource('/stream');
+            
+            // Connection opened
+            eventSource.onopen = function() {
+                connectionStatusEl.textContent = 'Connected';
+                connectionStatusEl.className = 'connected';
+                console.log('SSE connection established');
+            };
+            
+            // Connection error
+            eventSource.onerror = function(error) {
+                connectionStatusEl.textContent = 'Error - Reconnecting...';
+                connectionStatusEl.className = 'disconnected';
+                console.error('SSE connection error:', error);
+                
+                // Auto-reconnect after a delay
+                setTimeout(initSSE, 5000);
+            };
+            
+            // Event received
+            eventSource.onmessage = function(e) {
+                try {
+                    const event = JSON.parse(e.data);
+                    console.log('New event received:', event);
+                    addEventToTable(event);
+                } catch (error) {
+                    console.error('Error processing event:', error);
+                }
+            };
+        }
+        
+        // Load history from /events endpoint
+        function loadHistory() {
             fetch('/events')
                 .then(response => {
                     if (!response.ok) {
@@ -122,54 +217,26 @@
                     return response.json();
                 })
                 .then(events => {
-                    // Update status
-                    lastUpdateEl.textContent = new Date().toLocaleTimeString();
-                    statusEl.textContent = 'Idle';
-                    
-                    // Clear table and update count
+                    // Clear existing events
                     tableEl.innerHTML = '';
-                    countEl.textContent = events.length;
+                    eventCount = 0;
                     
-                    // Add each event to the table
-                    events.forEach(event => {
-                        // Create row
-                        const row = document.createElement('tr');
-                        
-                        // Define columns
-                        const cells = [
-                            { path: 'event_type' },
-                            { path: 'data.id', fallback: 'item_id' },
-                            { path: 'data.name' },
-                            { path: 'data.description' },
-                            { path: 'data.price' },
-                            { path: 'data.quantity' },
-                            { path: 'timestamp' }
-                        ];
-                        
-                        // Create cells
-                        cells.forEach(cell => {
-                            const td = document.createElement('td');
-                            const value = cell.fallback ?
-                                getValue(event, cell.path, getValue(event, cell.fallback)) :
-                                getValue(event, cell.path);
-                            td.textContent = value;
-                            row.appendChild(td);
-                        });
-                        
-                        // Add to table
-                        tableEl.appendChild(row);
+                    // Add events in reverse order (oldest first)
+                    const reversedEvents = [...events].reverse();
+                    reversedEvents.forEach(event => {
+                        addEventToTable(event, false);
                     });
+                    
+                    console.log(`Loaded ${events.length} historical events`);
                 })
                 .catch(error => {
-                    console.error('Error fetching events:', error);
-                    statusEl.textContent = 'Error: ' + error.message;
+                    console.error('Error loading history:', error);
+                    alert('Error loading history: ' + error.message);
                 });
         }
         
         // Button handlers
         testBtn.addEventListener('click', function() {
-            statusEl.textContent = 'Sending test event...';
-            
             fetch('/test-event')
                 .then(response => {
                     if (!response.ok) {
@@ -178,40 +245,28 @@
                     return response.json();
                 })
                 .then(data => {
-                    statusEl.textContent = 'Test event sent';
-                    // Immediately fetch the updated events
-                    fetchEvents();
+                    console.log('Test event sent:', data);
                 })
                 .catch(error => {
                     console.error('Error sending test event:', error);
-                    statusEl.textContent = 'Error: ' + error.message;
+                    alert('Error sending test event: ' + error.message);
                 });
         });
         
-        refreshBtn.addEventListener('click', fetchEvents);
-        
         clearBtn.addEventListener('click', function() {
             tableEl.innerHTML = '';
+            eventCount = 0;
             countEl.textContent = '0';
-            statusEl.textContent = 'Table cleared';
+            console.log('Table cleared');
         });
         
-        // Auto-refresh toggle
-        autoRefreshEl.addEventListener('change', function() {
-            if (autoRefreshEl.checked) {
-                // Start auto-refresh
-                refreshInterval = setInterval(fetchEvents, 3000);
-                statusEl.textContent = 'Auto-refresh enabled';
-            } else {
-                // Stop auto-refresh
-                clearInterval(refreshInterval);
-                statusEl.textContent = 'Auto-refresh disabled';
-            }
-        });
+        loadBtn.addEventListener('click', loadHistory);
         
-        // Initial setup
-        fetchEvents();
-        refreshInterval = setInterval(fetchEvents, 3000); // Refresh every 3 seconds
+        // Initialize SSE on page load
+        initSSE();
+        
+        // Initial load of history
+        loadHistory();
     </script>
 </body>
 </html>

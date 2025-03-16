@@ -3,8 +3,9 @@ import json
 import logging
 import threading
 import time
+import queue
 from datetime import datetime
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, Response, jsonify
 from kafka import KafkaConsumer
 
 # Configure logging
@@ -24,8 +25,11 @@ app = Flask(__name__, template_folder="templates")
 events = []
 events_lock = threading.Lock()
 
+# Queue for new events (used for SSE)
+event_queue = queue.Queue()
+
 def kafka_consumer():
-    """Kafka consumer that stores events in memory."""
+    """Kafka consumer that stores events in memory and puts them in the queue."""
     logger.info(f"Starting Kafka consumer for topic: {KAFKA_TOPIC}")
     
     # Give the server time to start
@@ -56,7 +60,10 @@ def kafka_consumer():
                     if len(events) > 100:
                         events.pop()
                 
-                logger.info(f"Event stored in memory. Total events: {len(events)}")
+                # Put the event in the queue for SSE
+                event_queue.put(event_data)
+                
+                logger.info(f"Event added to queue and stored in memory. Total events: {len(events)}")
                 
         except Exception as e:
             logger.error(f"Kafka consumer error: {e}")
@@ -72,6 +79,27 @@ def get_events():
     """Return current events as JSON."""
     with events_lock:
         return jsonify(events)
+
+@app.route('/stream')
+def stream():
+    """Stream events using Server-Sent Events."""
+    def event_stream():
+        # First send all existing events
+        with events_lock:
+            for event in events:
+                yield f"data: {json.dumps(event)}\n\n"
+        
+        # Then wait for new events
+        while True:
+            try:
+                # Wait for a new event (with timeout)
+                event = event_queue.get(timeout=30)
+                yield f"data: {json.dumps(event)}\n\n"
+            except queue.Empty:
+                # Send a keep-alive comment to prevent connection timeout
+                yield ": keep-alive\n\n"
+    
+    return Response(event_stream(), mimetype="text/event-stream")
 
 @app.route('/test-event')
 def test_event():
@@ -96,6 +124,9 @@ def test_event():
         if len(events) > 100:
             events.pop()
     
+    # Put the event in the queue for SSE
+    event_queue.put(test_data)
+    
     logger.info(f"Test event added: {test_data}")
     return jsonify({"status": "success", "message": "Test event added"})
 
@@ -106,4 +137,4 @@ if __name__ == '__main__':
     
     # Run the Flask server
     logger.info("Starting Flask server")
-    app.run(host='0.0.0.0', port=5002, debug=True)
+    app.run(host='0.0.0.0', port=5002, threaded=True, debug=True)
