@@ -4,7 +4,7 @@ import threading
 import queue
 from datetime import datetime
 from flask import Flask, render_template, Response, jsonify
-from kafka_init import KafkaEventConsumer
+from kafka_client import KafkaEventConsumer
 from logger import logger
 
 # Kafka configuration
