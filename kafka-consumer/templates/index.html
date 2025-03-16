@@ -105,12 +105,10 @@
         }
         
         // Add event to table
-        function addEventToTable(event, prepend = true) {
-            // Create row
+        function addEventToTable(event) {
             const row = document.createElement('tr');
             row.className = 'event-row';
-            
-            // Define columns
+        
             const cells = [
                 { path: 'event_type' },
                 { path: 'data.id', fallback: 'item_id' },
@@ -120,45 +118,55 @@
                 { path: 'data.quantity' },
                 { path: 'timestamp' }
             ];
-            
-            // Create cells
+        
             cells.forEach((cell, index) => {
                 const td = document.createElement('td');
-                const value = cell.fallback ?
-                    getValue(event, cell.path, getValue(event, cell.fallback)) :
-                    getValue(event, cell.path);
+                const value = cell.fallback
+                    ? getValue(event, cell.path, getValue(event, cell.fallback))
+                    : getValue(event, cell.path);
                 
                 td.textContent = value;
-                
-                // Apply Tailwind classes
+        
                 if (index === 0) {
                     td.className = 'whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6';
                 } else {
                     td.className = 'whitespace-nowrap px-3 py-4 text-sm text-gray-500';
                 }
-                
+        
                 row.appendChild(td);
             });
-            
-            // Add to table
-            if (prepend && tableEl.firstChild) {
-                tableEl.insertBefore(row, tableEl.firstChild);
-            } else {
+        
+            // Parse timestamp
+            const eventTimestamp = new Date(getValue(event, 'timestamp')).getTime();
+        
+            // Insert in correct order (descending by timestamp)
+            let inserted = false;
+            for (const child of tableEl.children) {
+                const childTimestamp = new Date(child.lastElementChild.textContent).getTime();
+                if (eventTimestamp > childTimestamp) {
+                    tableEl.insertBefore(row, child);
+                    inserted = true;
+                    break;
+                }
+            }
+        
+            if (!inserted) {
                 tableEl.appendChild(row);
             }
-            
+        
             // Limit table size
             if (tableEl.children.length > 100) {
                 tableEl.removeChild(tableEl.lastChild);
             }
-            
+        
             // Update count
             eventCount++;
             countEl.textContent = eventCount;
-            
+        
             // Update last event time
             lastEventEl.textContent = new Date().toLocaleTimeString();
         }
+        
         
         // Initialize Server-Sent Events connection
         function initSSE() {

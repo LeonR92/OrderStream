@@ -93,6 +93,7 @@ services:
       - kafka1
       - kafka2
       - kafka3
+      - kafka-init
     environment:
       KAFKA_CLUSTERS_0_NAME: local-kafka-cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:29092,kafka2:29093,kafka3:29094
