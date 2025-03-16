@@ -53,7 +53,7 @@ class Item(db.Model):
             db.session.add(item)
             db.session.commit()
             return item
-        except Exception as e:
+        except Exception:
             db.session.rollback()
             return None
 
@@ -76,7 +76,7 @@ class Item(db.Model):
 
             db.session.commit()
             return item
-        except Exception as e:
+        except Exception:
             db.session.rollback()
             return None
 
@@ -91,6 +91,6 @@ class Item(db.Model):
             db.session.delete(item)
             db.session.commit()
             return True
-        except Exception as e:
+        except Exception:
             db.session.rollback()
             return False

@@ -1,8 +1,6 @@
 import os
 import json
-import logging
 import threading
-import time
 import queue
 from datetime import datetime
 from flask import Flask, render_template, Response, jsonify

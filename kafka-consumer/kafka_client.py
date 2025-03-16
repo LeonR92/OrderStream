@@ -4,7 +4,7 @@ import queue
 import threading
 import time
 from logger import logger
-from kafka import KafkaConsumer
+from kafka_client import KafkaConsumer
 
 
 
