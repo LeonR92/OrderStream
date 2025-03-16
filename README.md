@@ -28,7 +28,7 @@ The system efficiently handles real-time order processing, allowing users to cre
 
 ## Screenshots
 
-**Generate Random Data**
+**Generate Random Data in http://localhost:5001/**
 ![Generate](./randomgenerate.jpeg)
 
 **Live result in localhost:5002**
