@@ -2,7 +2,9 @@
 
 ## Overview
 
-This project is a **high-performance, distributed order processing system** powered by Flask, PostgreSQL, Kafka, and Docker Compose. It efficiently handles **real-time order processing**, allowing users to create orders manually or generate them randomly. The system **dual-writes** orders into PostgreSQL and streams them to a Kafka topic, ensuring **event-driven data consistency**. A Kafka consumer listens for order events and updates the UI dynamically using **Server-Sent Events (SSE)** for a seamless real-time experience.
+This project is an attempt to build systems similar to those used by Uber and other high-scale companies, designed for real-time, distributed order processing. It is powered by Flask, PostgreSQL, Kafka, and Docker Compose, ensuring high performance and scalability.
+
+The system efficiently handles real-time order processing, allowing users to create orders manually or generate them randomly. The system dual-writes orders into PostgreSQL and streams them to a Kafka topic, ensuring event-driven data consistency. A Kafka consumer listens for order events and updates the UI dynamically using Server-Sent Events (SSE) for a seamless real-time experience.
 
 ## Architecture
 
