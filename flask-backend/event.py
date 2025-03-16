@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime
-from kafka import KafkaProducer, KafkaError
+from kafka import KafkaProducer
 from typing import List, Optional
 
 # Configure logging
@@ -51,6 +51,6 @@ class KafkaEventPublisher:
 
             logger.info(f"Event published: {event_type} - Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
             return True
-        except KafkaError as e:
+        except Exception as e:
             logger.error(f"Failed to publish event: {e}")
             return False
