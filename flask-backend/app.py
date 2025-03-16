@@ -29,21 +29,10 @@ event_publisher = KafkaEventPublisher(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
-@app.route("/order")
+@app.route("/")
 def show_order_form():
     return render_template("index.html")
 
-@app.route('/api/get_items', methods=['GET'])
-def get_items():
-    items = Item.get_all()
-    return jsonify([item.to_dict() for item in items])
-
-@app.route('/api/items/<int:item_id>', methods=['GET'])
-def get_item(item_id):
-    item = Item.get_by_id(item_id)
-    if not item:
-        return jsonify({'error': 'Item not found'}), 404
-    return jsonify(item.to_dict())
 
 @app.route('/api/items', methods=['POST'])
 def create_item():
@@ -73,29 +62,9 @@ def create_item():
     # Publish event
     event_publisher.publish_event('item_created', item.id, item.to_dict())
 
-    return jsonify(item.to_dict()), 201
+    return jsonify("succesfully added item. Go to http://localhost:5002/ to see the live results or go back to add a new one"), 201
 
 
-@app.route('/api/items/<int:item_id>', methods=['PUT'])
-def update_item(item_id):
-    data = request.get_json()
-    item = Item.update(item_id, data)
-
-    if not item:
-        return jsonify({'error': 'Item not found or update failed'}), 404
-
-    event_publisher.publish_event('item_updated', item.id, item.to_dict())
-    return jsonify(item.to_dict())
-
-@app.route('/api/items/<int:item_id>', methods=['DELETE'])
-def delete_item(item_id):
-    success = Item.delete(item_id)
-
-    if not success:
-        return jsonify({'error': 'Item not found or deletion failed'}), 404
-
-    event_publisher.publish_event('item_deleted', item_id, {})
-    return jsonify({'message': f"Item {item_id} deleted successfully"})
 
 # Create tables
 with app.app_context():
