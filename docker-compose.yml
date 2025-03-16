@@ -1,0 +1,163 @@
+version: '3.8'
+
+services:
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
+    networks:
+      - backend
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Zookeeper (Manages Kafka Brokers)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    restart: always
+    networks:
+      - kafka_cluster
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    expose:
+      - "2181"
+
+  # Kafka Broker 1
+  kafka1:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka_broker1
+    restart: always
+    networks:
+      - kafka_cluster
+    depends_on:
+      - zookeeper
+    expose:
+      - "9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka1:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+
+  # Kafka Broker 2
+  kafka2:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka_broker2
+    restart: always
+    networks:
+      - kafka_cluster
+    depends_on:
+      - zookeeper
+    expose:
+      - "9093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka2:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+
+  # Kafka Broker 3
+  kafka3:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka_broker3
+    restart: always
+    networks:
+      - kafka_cluster
+    depends_on:
+      - zookeeper
+    expose:
+      - "9094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka3:9094
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 2
+
+  # Debezium (Change Data Capture)
+  debezium:
+    image: debezium/connect:latest
+    container_name: debezium_connect
+    restart: always
+    depends_on:
+      - postgres
+      - kafka1
+      - kafka2
+      - kafka3
+    networks:
+      - backend
+      - kafka_cluster
+    expose:
+      - "8083"
+    environment:
+      BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9093,kafka3:9094
+      GROUP_ID: "1"
+      CONFIG_STORAGE_TOPIC: debezium_configs
+      OFFSET_STORAGE_TOPIC: debezium_offsets
+      STATUS_STORAGE_TOPIC: debezium_statuses
+
+  # Flask Backend API (Kafka Producer)
+  backend:
+    build: ./backend
+    container_name: flask_backend
+    restart: always
+    depends_on:
+      - kafka1
+      - postgres
+    networks:
+      - backend
+      - kafka_cluster
+    expose:
+      - "5000"
+    environment:
+      DATABASE_URL: "postgresql://user:password@postgres:5432/mydatabase"
+      KAFKA_BROKER: "kafka1:9092"
+
+  # Kafka Consumer App
+  consumer:
+    build: ./consumer_app
+    container_name: kafka_consumer
+    restart: always
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3
+    networks:
+      - backend
+      - kafka_cluster
+    environment:
+      KAFKA_BROKER: "kafka1:9092,kafka2:9093,kafka3:9094"
+      KAFKA_TOPIC: "my_topic"
+      DATABASE_URL: "postgresql://user:password@postgres:5432/mydatabase"
+
+  # Frontend Flask App
+  frontend:
+    build: ./frontend
+    container_name: flask_frontend
+    restart: always
+    depends_on:
+      - consumer
+    ports:
+      - "5001:5001"
+    networks:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+  kafka_cluster:
+    driver: bridge
