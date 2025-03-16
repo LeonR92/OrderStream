@@ -15,4 +15,4 @@ COPY . .
 EXPOSE 5002
 
 # Run Flask app with WebSockets
-CMD ["python", "app.py"]
+CMD ["python", "consumer.py"]

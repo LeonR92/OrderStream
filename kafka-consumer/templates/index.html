@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kafka Live Stream</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.6;
+        }
+        h1, h2 { 
+            color: #333;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin: 20px 0; 
+        }
+        th, td { 
+            border: 1px solid #ddd; 
+            padding: 8px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #f2f2f2; 
+            font-weight: bold;
+        }
+        tr:nth-child(even) { 
+            background-color: #f9f9f9; 
+        }
+        .status-bar {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .status-item {
+            margin-right: 20px;
+        }
+        .status-indicator {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected { 
+            background-color: #dff0d8; 
+            color: #3c763d; 
+        }
+        .disconnected { 
+            background-color: #f2dede; 
+            color: #a94442; 
+        }
+        .button-group {
+            margin: 15px 0;
+        }
+        button {
+            padding: 8px 16px;
+            margin-right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #log-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            font-family: monospace;
+            font-size: 12px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Kafka Live Stream</h1>
+    
+    <div class="status-bar">
+        <div class="status-item">
+            Status: <span id="status" class="status-indicator disconnected">Disconnected</span>
+        </div>
+        <div class="status-item">
+            Events: <span id="count">0</span>
+        </div>
+        <div class="status-item">
+            Namespace: <span id="namespace-display">/events</span>
+        </div>
+        <div class="status-item">
+            Client ID: <span id="client-id">-</span>
+        </div>
+    </div>
+    
+    <div class="button-group">
+        <button id="test-btn">Send Test Event</button>
+        <button id="clear-btn">Clear Table</button>
+        <button id="reconnect-btn">Reconnect</button>
+        <button id="toggle-namespace-btn">Toggle Namespace</button>
+        <button id="toggle-log-btn">Show/Hide Log</button>
+    </div>
+    
+    <div id="log-container">
+        <h3>Connection Log</h3>
+        <div id="log"></div>
+    </div>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Event Type</th>
+                <th>Item ID</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Price</th>
+                <th>Quantity</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody id="events-table">
+            <!-- Events will be displayed here -->
+        </tbody>
+    </table>
+
+    <script>
+        // DOM elements
+        const statusEl = document.getElementById('status');
+        const countEl = document.getElementById('count');
+        const tableEl = document.getElementById('events-table');
+        const testBtn = document.getElementById('test-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const reconnectBtn = document.getElementById('reconnect-btn');
+        const toggleNamespaceBtn = document.getElementById('toggle-namespace-btn');
+        const toggleLogBtn = document.getElementById('toggle-log-btn');
+        const namespaceDisplayEl = document.getElementById('namespace-display');
+        const clientIdEl = document.getElementById('client-id');
+        const logContainerEl = document.getElementById('log-container');
+        const logEl = document.getElementById('log');
+        
+        // State
+        let eventCount = 0;
+        let socket = null;
+        let useNamespace = true; // Start with namespace
+        let pingInterval = null;
+        let clientId = null;
+        
+        // Logging function
+        function log(message) {
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.innerHTML = `<strong>[${time}]</strong> ${message}`;
+            logEl.insertBefore(entry, logEl.firstChild);
+            console.log(`[${time}] ${message}`);
+            
+            // Keep log size reasonable
+            if (logEl.children.length > 100) {
+                logEl.removeChild(logEl.lastChild);
+            }
+        }
+        
+        // Initialize socket connection
+        function initializeSocket() {
+            // Clean up existing connection and intervals
+            if (socket) {
+                log('Disconnecting existing socket');
+                socket.disconnect();
+                
+                if (pingInterval) {
+                    clearInterval(pingInterval);
+                    pingInterval = null;
+                }
+            }
+            
+            const namespace = useNamespace ? '/events' : '/';
+            log(`Initializing socket with ${namespace} namespace`);
+            namespaceDisplayEl.textContent = namespace;
+            
+            // Update status
+            statusEl.textContent = 'Connecting...';
+            statusEl.className = 'status-indicator disconnected';
+            clientIdEl.textContent = '-';
+            
+            // Create socket connection
+            socket = io(namespace, {
+                transports: ['websocket'],
+                reconnection: true,
+                reconnectionAttempts: Infinity,
+                reconnectionDelay: 1000,
+                timeout: 10000
+            });
+            
+            // Connection events
+            socket.on('connect', function() {
+                log('Connected to server');
+                statusEl.textContent = 'Connected';
+                statusEl.className = 'status-indicator connected';
+                
+                // Start sending pings to keep connection alive
+                if (pingInterval) {
+                    clearInterval(pingInterval);
+                }
+                
+                pingInterval = setInterval(function() {
+                    socket.emit('ping_server');
+                    log('Ping sent to server');
+                }, 15000); // Every 15 seconds
+            });
+            
+            socket.on('disconnect', function(reason) {
+                log(`Disconnected: ${reason}`);
+                statusEl.textContent = `Disconnected: ${reason}`;
+                statusEl.className = 'status-indicator disconnected';
+                
+                if (pingInterval) {
+                    clearInterval(pingInterval);
+                    pingInterval = null;
+                }
+            });
+            
+            socket.on('connect_error', function(error) {
+                log(`Connection error: ${error.message}`);
+                statusEl.textContent = 'Connection Error';
+                statusEl.className = 'status-indicator disconnected';
+            });
+            
+            socket.on('error', function(error) {
+                log(`Socket error: ${error}`);
+            });
+            
+            // Listen for connection response
+            socket.on('connection_response', function(data) {
+                log(`Server confirmed connection: ${JSON.stringify(data)}`);
+                if (data.client_id) {
+                    clientId = data.client_id;
+                    clientIdEl.textContent = clientId;
+                }
+            });
+            
+            // Listen for pong response
+            socket.on('pong', function(data) {
+                log(`Pong received: ${JSON.stringify(data)}`);
+            });
+            
+            // Listen for new events
+            socket.on('new_event', function(data) {
+                log(`Received event: ${data.event_type} - ID: ${data.item_id || (data.data && data.data.id) || 'unknown'}`);
+                processEvent(data);
+            });
+        }
+        
+        // Process incoming event
+        function processEvent(data) {
+            try {
+                // Update counter
+                eventCount++;
+                countEl.textContent = eventCount;
+                
+                // Helper function to safely access nested properties
+                function getValue(obj, path, defaultVal = 'N/A') {
+                    try {
+                        if (!obj) return defaultVal;
+                        
+                        const parts = path.split('.');
+                        let result = obj;
+                        
+                        for (const part of parts) {
+                            if (result === undefined || result === null) {
+                                return defaultVal;
+                            }
+                            result = result[part];
+                        }
+                        
+                        return (result === undefined || result === null) ? defaultVal : result;
+                    } catch (e) {
+                        console.error('Error getting value:', e);
+                        return defaultVal;
+                    }
+                }
+                
+                // Create new row
+                const row = document.createElement('tr');
+                
+                // Add cells for each column
+                const cells = [
+                    { path: 'event_type' },
+                    { path: 'data.id', fallback: 'item_id' },
+                    { path: 'data.name' },
+                    { path: 'data.description' },
+                    { path: 'data.price' },
+                    { path: 'data.quantity' },
+                    { path: 'timestamp' }
+                ];
+                
+                cells.forEach(cell => {
+                    const td = document.createElement('td');
+                    const value = cell.fallback ?
+                        getValue(data, cell.path, getValue(data, cell.fallback)) :
+                        getValue(data, cell.path);
+                    td.textContent = value;
+                    row.appendChild(td);
+                });
+                
+                // Add to table at the top
+                if (tableEl.firstChild) {
+                    tableEl.insertBefore(row, tableEl.firstChild);
+                } else {
+                    tableEl.appendChild(row);
+                }
+                
+                // Limit table size
+                if (tableEl.children.length > 50) {
+                    tableEl.removeChild(tableEl.lastChild);
+                }
+                
+            } catch (error) {
+                log(`Error processing event: ${error.message}`);
+                console.error('Event data:', data);
+                console.error('Error:', error);
+            }
+        }
+        
+        // Button event handlers
+        testBtn.addEventListener('click', function() {
+            fetch('/test-event')
+                .then(response => {
+                    log('Test event requested');
+                })
+                .catch(error => {
+                    log(`Error requesting test event: ${error.message}`);
+                });
+        });
+        
+        clearBtn.addEventListener('click', function() {
+            tableEl.innerHTML = '';
+            eventCount = 0;
+            countEl.textContent = '0';
+            log('Table cleared');
+        });
+        
+        reconnectBtn.addEventListener('click', function() {
+            log('Manual reconnection requested');
+            initializeSocket();
+        });
+        
+        toggleNamespaceBtn.addEventListener('click', function() {
+            useNamespace = !useNamespace;
+            log(`Switching to ${useNamespace ? '/events namespace' : 'root namespace'}`);
+            initializeSocket();
+        });
+        
+        toggleLogBtn.addEventListener('click', function() {
+            if (logContainerEl.style.display === 'none') {
+                logContainerEl.style.display = 'block';
+                toggleLogBtn.textContent = 'Hide Log';
+            } else {
+                logContainerEl.style.display = 'none';
+                toggleLogBtn.textContent = 'Show Log';
+            }
+        });
+        
+        // Handle page visibility changes to reconnect if needed
+        document.addEventListener('visibilitychange', function() {
+            const isVisible = !document.hidden;
+            log(`Page visibility changed: ${isVisible ? 'visible' : 'hidden'}`);
+            
+            if (isVisible && (!socket || !socket.connected)) {
+                log('Page became visible, reconnecting socket');
+                initializeSocket();
+            }
+        });
+        
+        // Initialize on page load
+        window.addEventListener('load', function() {
+            log('Page loaded, initializing socket');
+            initializeSocket();
+        });
+        
+        // Ensure clean disconnection when page unloads
+        window.addEventListener('beforeunload', function() {
+            if (socket) {
+                socket.disconnect();
+            }
+            if (pingInterval) {
+                clearInterval(pingInterval);
+            }
+        });
+        
+        // Start immediately if already loaded
+        if (document.readyState === 'complete') {
+            log('Page already loaded, initializing socket');
+            initializeSocket();
+        }
+    </script>
+</body>
+</html>

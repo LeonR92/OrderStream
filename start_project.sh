@@ -17,8 +17,9 @@ sleep 10
 # Build and start the Flask backend and Kafka consumer
 docker-compose up  --build flask-backend kafka-consumer
 
-# Start the Kafka UI
-docker-compose up -d kafka-ui
+sleep 10
 
 # Check if all services are running
 docker-compose ps
+
+docker-compose up -d kafka-ui

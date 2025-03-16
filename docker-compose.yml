@@ -137,6 +137,8 @@ services:
       dockerfile: Dockerfile
     platform: linux/arm64
     container_name: kafka-consumer
+    ports:
+      - "5002:5002"
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29093,kafka3:29094
       KAFKA_TOPIC: item-events
