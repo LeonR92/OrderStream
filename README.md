@@ -6,6 +6,9 @@ This project is a **high-performance, distributed order processing system** powe
 
 ## Architecture
 
+![System Architecture](./architecture.jepg)
+
+
 ### Key Components
 - **Flask Backend**: API that processes and stores orders with Active Record architecture while publishing events to Kafka.
 - **PostgreSQL Database**: Reliable storage for structured order data.
@@ -20,6 +23,22 @@ This project is a **high-performance, distributed order processing system** powe
 3. **Kafka logs the event** in its distributed message queue.
 4. **Kafka Consumer listens** and pushes the update via **SSE** to the UI.
 5. **Users see real-time order updates** on the HTML dashboard.
+
+## Screenshots
+
+**Generate Random Data**
+![Generate](./randomgenerate.jpeg)
+
+**Live result in localhost:5002**
+![Randomresults](./randomresults.jpeg)
+
+
+**Manual Entry**
+![Manual Entry](./manualresult.jpeg)
+
+**Live results**
+
+
 
 ## Technologies Used
 - **Flask** (Python web framework for the backend API)
