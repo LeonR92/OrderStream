@@ -69,7 +69,11 @@ Ensure you have the following installed:
    ```bash
    ./start_project.sh
    ```
-4. Verify that all services are running:
+4. Run Kafka UI
+   ```bash
+   docker-compose up -d kafka-ui
+   ```
+6. Verify that all services are running:
    - **Kafka UI**: [http://localhost:8080](http://localhost:8080)
    - **Flask Backend**: [http://localhost:5001](http://localhost:5001)
    - **Kafka Consumer**: [http://localhost:5002](http://localhost:5002)
